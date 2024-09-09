@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 ############################### Libraries ###############################
 from pathlib import Path
+import os
 import threading
 import csv
 import argparse
@@ -11,8 +12,13 @@ import cv2
 import numpy as np
 import depthai as dai
 import rospy
+import tf2_ros
+import tf_conversions
+from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
+from collections import defaultdict, deque
 
 ############################### Parameters ###############################
 # Global variables to deal with pipeline creation
@@ -33,7 +39,6 @@ class_colors = {
     1: (128, 255, 0),   # green
     2: (252, 202, 66),  # blue
 }
-
 
 ################################ Yolo Config File
 # Parse Config
@@ -56,16 +61,17 @@ confidenceThreshold = metadata.get("confidence_threshold", {})
 # Parse labels
 nnMappings = config.get("mappings", {})
 labels = nnMappings.get("labels", {})
+rospy.loginfo("Parse Configured")
 
 class DepthaiCamera():
     res = [416, 416]
-    fps = 30.0
+    fps = 20.0
 
     pub_topic = '/processor_node/image/compressed'
     pub_topic_raw = '/processor_node/image/raw'
     pub_topic_detect = '/processor_node/detection/compressed'
     pub_topic_cam_inf = '/processor_node/camera/camera_info'
-
+    pub_topic_objects = '/object_pose'
 
     def __init__(self):
         self.pipeline = dai.Pipeline()
@@ -78,21 +84,70 @@ class DepthaiCamera():
         self.pub_image = rospy.Publisher(self.pub_topic, CompressedImage, queue_size=10)
         self.pub_image_raw = rospy.Publisher(self.pub_topic_raw, Image, queue_size=10)
         self.pub_image_detect = rospy.Publisher(self.pub_topic_detect, CompressedImage, queue_size=10)
-
+        # Create a publisher for the object pose data
+        self.pub_object_detect = rospy.Publisher(self.pub_topic_objects, Float32MultiArray, queue_size=10)
         # Create a publisher for the CameraInfo topic
         self.pub_cam_inf = rospy.Publisher(self.pub_topic_cam_inf, CameraInfo, queue_size=10)
         # Create a timer for the callback
         self.timer = rospy.Timer(rospy.Duration(1.0 / 10), self.publish_camera_info, oneshot=False)
-
-        rospy.loginfo("Publishing images to rostopic: {}".format(self.pub_topic))
+        rospy.loginfo("Publishing to all topics initialised")
 
         self.br = CvBridge()
+        self.published_objects = set()
+
+        # Keep Unique IDs after 10 counts
+        self.coordinate_buffers = defaultdict(lambda: deque(maxlen=10)) 
 
         rospy.on_shutdown(lambda: self.shutdown())
 
-    def publish_camera_info(self, timer=None):
-        # Create a publisher for the CameraInfo topic
+    def publish_object_data(self, frame, detection):
+        # Structure IDs based on labels to avoid class confusion, Nav uses 101 and 102 for objects, and 0 - 100 inc for arucos
+        if labels[detection.label] == "backpack":
+            object_id = 101
+        elif labels[detection.label] == 'person':
+            object_id = 102
+        else:
+            rospy.logwarn("This Object Identifier is unknown")
+            return
 
+        obj_frame = frame.copy()
+        # Convert to pixel coordinates for absolute values and calculate dynamic marker box size
+        bbox = self.frameNorm(obj_frame, (detection.xmin, detection.ymin, detection.xmax, detection.ymax))
+        corners = np.array([
+            (bbox[0], bbox[1]),
+            (bbox[2], bbox[1]),
+            (bbox[2], bbox[3]),
+            (bbox[0], bbox[3])
+        ])
+        height = bbox[3] - bbox[1]
+        width = bbox[2] - bbox[0]
+
+        marker_length_x = width / frame.shape[1]
+        marker_length_y = height / frame.shape[0]
+
+        # Append the detection to the buffer
+        self.coordinate_buffers[object_id].append(corners.flatten())
+
+        if len(self.coordinate_buffers[object_id]) == 10 and object_id not in self.published_objects:
+            # Compute average coordinates
+            avg_corners = np.mean(self.coordinate_buffers[object_id], axis=0).reshape((4, 2))
+            
+            # Publish Object box data and coordinates 
+            object_detection_msg = Float32MultiArray()
+            object_detection_msg.data = [float(object_id)] + [coord for point in avg_corners for coord in point] + [marker_length_x, marker_length_y]
+ 
+            self.pub_object_detect.publish(object_detection_msg)
+            rospy.loginfo("Published Object Identity and Coordinates for: {}".format(object_detection_msg.data[0]))
+
+            os.system(f"espeak 'Detected Target: {labels[detection.label]}'")  # Use espeak to speak the ID
+            #rospy.loginfo("Target detected: {}".format(labels[detection.label]))
+            rospy.loginfo("Found Target: {}".format(labels[detection.label]))
+            
+            # Mark objects as published
+            self.published_objects.add(object_id)
+            self.coordinate_buffers[object_id].clear()
+
+    def publish_camera_info(self, timer=None):
         # Create a CameraInfo message
         camera_info_msg = CameraInfo()
         camera_info_msg.header.frame_id = "camera_frame"
@@ -131,11 +186,9 @@ class DepthaiCamera():
         cam_rgb.preview.link(xout_rgb.input)
 
     def run(self):
-        #self.rgb_camera()
         ###############################RunModel###############################
         # Pipeline defined, now the device is assigned and pipeline is started
         pipeline = None
-        # Get argument first
         # Model parameters
         modelPathName = f'{modelsPath}/{modelName}/{modelName}.blob'
         print(metadata)
@@ -160,14 +213,9 @@ class DepthaiCamera():
             start_time = time.time()
             counter = 0
             fps = 0
-            
-            color2 = (255, 255, 255)
-            layer_info_printed = False
-            dims = None
 
             while True:
                 found_classes = []
-                # instead of get (blocking) used tryGet (nonblocking) which will return the available data or None otherwise
                 inRgb = q_nn_input.get()
                 inDet = q_nn.get()
 
@@ -179,13 +227,10 @@ class DepthaiCamera():
                 
                 if inDet is not None:
                     detections = inDet.detections
-                    # print(detections)
                     for detection in detections:
-                        # print(detection)
-                        print("{},{},{},{},{},{},{}".format(detection.label,labels[detection.label],detection.confidence,detection.xmin, detection.ymin, detection.xmax, detection.ymax))
-                        found_classes.append(detection.label)
+                        # Publish the object Id
+                        self.publish_object_data(frame, detection)
                     found_classes = np.unique(found_classes)
-
                     overlay = self.show_yolo(frame, detections)
                 else:
                     print("Detection empty, trying again...")
@@ -206,15 +251,7 @@ class DepthaiCamera():
                     counter = 0
                     start_time = time.time()
 
-
-            # with dai.Device(self.pipeline) as device:
-            #     video = device.getOutputQueue(name="video", maxSize=1, blocking=False)
-
-            #     while True:
-            #         frame = video.get().getCvFrame()
-            #         self.publish_to_ros(frame)
-            #         self.publish_camera_info()
-
+    # 
     def publish_to_ros(self, frame):
         msg_out = CompressedImage()
         msg_out.header.stamp = rospy.Time.now()

@@ -11,10 +11,6 @@ import cv2
 import numpy as np
 import depthai as dai
 import rospy
-import tf2_ros
-import tf_conversions
-from geometry_msgs.msg import TransformStamped
-from std_msgs.msg import Float32MultiArray
 from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -60,17 +56,16 @@ confidenceThreshold = metadata.get("confidence_threshold", {})
 # Parse labels
 nnMappings = config.get("mappings", {})
 labels = nnMappings.get("labels", {})
-rospy.loginfo("Parse Configured")
 
 class DepthaiCamera():
     res = [416, 416]
-    fps = 20.0
+    fps = 30.0
 
     pub_topic = '/processor_node/image/compressed'
     pub_topic_raw = '/processor_node/image/raw'
     pub_topic_detect = '/processor_node/detection/compressed'
     pub_topic_cam_inf = '/processor_node/camera/camera_info'
-    pub_topic_roi = '/object_pose'
+
 
     def __init__(self):
         self.pipeline = dai.Pipeline()
@@ -83,39 +78,19 @@ class DepthaiCamera():
         self.pub_image = rospy.Publisher(self.pub_topic, CompressedImage, queue_size=10)
         self.pub_image_raw = rospy.Publisher(self.pub_topic_raw, Image, queue_size=10)
         self.pub_image_detect = rospy.Publisher(self.pub_topic_detect, CompressedImage, queue_size=10)
-        self.pub_roi = rospy.Publisher(self.pub_topic_roi, Float32MultiArray, self.call)
+
         # Create a publisher for the CameraInfo topic
         self.pub_cam_inf = rospy.Publisher(self.pub_topic_cam_inf, CameraInfo, queue_size=10)
         # Create a timer for the callback
         self.timer = rospy.Timer(rospy.Duration(1.0 / 10), self.publish_camera_info, oneshot=False)
-        rospy.loginfo("Publishing to all topics initialised")
+
+        rospy.loginfo("Publishing images to rostopic: {}".format(self.pub_topic))
 
         self.br = CvBridge()
-        self.published_objects = set()
 
         rospy.on_shutdown(lambda: self.shutdown())
 
-    def publish_object_data(self, frame, detection):
-        # Structure IDs based on labels to avoid class confusion
-        if labels[detection.label] == "backpack":
-            object_id = 101
-        elif labels[detection.label] == 'person':
-            object_id = 102
-        else:
-            rospy.logwarn("This Object Identifier is unknown")
-            return
-        
-        # Check for object already published
-        if object_id in self.published_objects:
-            return
-        self.published_objects.add(object_id)
-
-        
-
-
     def publish_camera_info(self, timer=None):
-        # Create a publisher for the CameraInfo topic
-
         # Create a CameraInfo message
         camera_info_msg = CameraInfo()
         camera_info_msg.header.frame_id = "camera_frame"
@@ -154,9 +129,11 @@ class DepthaiCamera():
         cam_rgb.preview.link(xout_rgb.input)
 
     def run(self):
+        #self.rgb_camera()
         ###############################RunModel###############################
         # Pipeline defined, now the device is assigned and pipeline is started
         pipeline = None
+        # Get argument first
         # Model parameters
         modelPathName = f'{modelsPath}/{modelName}/{modelName}.blob'
         print(metadata)
@@ -181,9 +158,14 @@ class DepthaiCamera():
             start_time = time.time()
             counter = 0
             fps = 0
+            
+            color2 = (255, 255, 255)
+            layer_info_printed = False
+            dims = None
 
             while True:
                 found_classes = []
+                # instead of get (blocking) used tryGet (nonblocking) which will return the available data or None otherwise
                 inRgb = q_nn_input.get()
                 inDet = q_nn.get()
 
@@ -195,11 +177,13 @@ class DepthaiCamera():
                 
                 if inDet is not None:
                     detections = inDet.detections
+                    # print(detections)
                     for detection in detections:
                         # print(detection)
                         print("{},{},{},{},{},{},{}".format(detection.label,labels[detection.label],detection.confidence,detection.xmin, detection.ymin, detection.xmax, detection.ymax))
                         found_classes.append(detection.label)
                     found_classes = np.unique(found_classes)
+
                     overlay = self.show_yolo(frame, detections)
                 else:
                     print("Detection empty, trying again...")

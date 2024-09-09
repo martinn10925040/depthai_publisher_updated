@@ -164,6 +164,7 @@ catkin_install_python(PROGRAMS
   scripts/aruco_subscriber
   scripts/aruco_detector
   scripts/dai_detector
+  scripts/dai_detector_old
   scripts/aruco_subscriber_voice
   scripts/aruco_subscriber_voice2
   scripts/dai_publisher_yolov5_runner_2
