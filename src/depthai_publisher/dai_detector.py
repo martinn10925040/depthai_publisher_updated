@@ -22,7 +22,7 @@ cam=None
 # sync outputs
 syncNN = True
 # model path
-modelsPath = "/home/uavteam2/QUT_EGH450/src/depthai_publisher_updated/src/depthai_publisher/models"
+modelsPath = "/home/uavteam2/models"
 # modelName = 'exp31Yolov5_ov21.4_6sh'
 modelName = 'best_version7_openvino_2022.1_6shave'
 # confJson = 'exp31Yolov5.json'
@@ -59,7 +59,7 @@ labels = nnMappings.get("labels", {})
 
 class DepthaiCamera():
     res = [416, 416]
-    fps = 30.0
+    fps = 20.0
 
     pub_topic = '/processor_node/image/compressed'
     pub_topic_raw = '/processor_node/image/raw'
@@ -179,12 +179,18 @@ class DepthaiCamera():
                     detections = inDet.detections
                     # print(detections)
                     for detection in detections:
-                        print(detection)
+                        # xmin, ymin = detection.xmin, detection.ymin
+                        # xmax, ymax = detection.xmax, detection.ymax
+
+                        # # Convert to pixel coordinates
+                        # bbox = self.frameNorm(frame, (xmin, ymin, xmax, ymax))
+
+
+                        # print(detection)
                         print("{},{},{},{},{},{},{}".format(detection.label,labels[detection.label],detection.confidence,detection.xmin, detection.ymin, detection.xmax, detection.ymax))
                         found_classes.append(detection.label)
-                        # print(dai.ImgDetection.getData(detection))
                     found_classes = np.unique(found_classes)
-                    # print(found_classes)
+
                     overlay = self.show_yolo(frame, detections)
                 else:
                     print("Detection empty, trying again...")

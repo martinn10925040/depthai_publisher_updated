@@ -14,7 +14,7 @@ class ArucoDetector():
     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
     aruco_params = cv2.aruco.DetectorParameters_create()
 
-    frame_sub_topic = '/processor_node/image/compressed'
+    #frame_sub_topic = '/processor_node/image/compressed'
 
     def __init__(self):
         rospy.loginfo("Initialising Aruco Detector class...")
@@ -27,7 +27,7 @@ class ArucoDetector():
         # ArUco POSE estimator publisher
         self.aruco_pub_pose = rospy.Publisher(
             '/aruco_pose', Float32MultiArray, queue_size=10)
-        rospy.loginfo("Publisher '/aruco_pose' initialised")
+        rospy.loginfo("Publisher '/aruco_pose' initialised for Autopilot Integration")
         
         # Initialize CvBridge for converting ROS images to OpenCV format
         self.br = CvBridge()
@@ -37,12 +37,12 @@ class ArucoDetector():
 
         if not rospy.is_shutdown():  # To check if ROS is shutting down
             self.frame_sub = rospy.Subscriber(
-                self.frame_sub_topic, CompressedImage, self.img_callback) 
-        rospy.loginfo(f"Subscriber to topic '{self.frame_sub_topic}' initialised")
+                '/processor_node/image/compressed', CompressedImage, self.img_callback) 
+        rospy.loginfo(f"Subscriber to topic '/processor_node/image/compressed' initialised")
 
         # Keep Unique IDs
         self.unique_aruco_ids = set()
-        #self.published_aruco_ids = set()
+        self.published_aruco_ids = set()
         # Store last 10 sets of coordinates for each marker
         self.coordinate_buffers = defaultdict(lambda: deque(maxlen=10)) 
 
@@ -63,7 +63,6 @@ class ArucoDetector():
         if len(corners) > 0:  # If marker detected, flatten array of marker ID
             ids = ids.flatten()
 
-            aruco_ids = []  # To store new detected ids
             for (marker_corner, marker_ID) in zip(corners, ids):
                 # ArUco Bounding Box 
                 corners = marker_corner.reshape((4, 2))
@@ -81,13 +80,13 @@ class ArucoDetector():
                 
                 self.coordinate_buffers[marker_ID].append(corners.flatten())
 
-                if len(self.coordinate_buffers[marker_ID]) == 10:
+                if len(self.coordinate_buffers[marker_ID]) == 10 and marker_ID not in self.published_aruco_ids:
                     # Compute average coordinates
                     avg_corners = np.mean(self.coordinate_buffers[marker_ID], axis=0).reshape((4,2))
 
                     #Publish average coordinates
                     aruco_detection_msg = Float32MultiArray()
-                    aruco_detection_msg.data = [float(marker_ID)] + [coord for point in corners for coord in point]
+                    aruco_detection_msg.data = [float(marker_ID)] + [coord for point in avg_corners for coord in point]
 
                     self.aruco_pub_pose.publish(aruco_detection_msg)
                     rospy.loginfo("Published ArUco Identification and BBox corners: {}".format(aruco_detection_msg.data))
@@ -96,6 +95,7 @@ class ArucoDetector():
                     os.system(f"espeak 'Detected ArUco Marker {marker_ID}'")  # Use espeak to speak the ID
                     rospy.loginfo("Aruco detected, ID: {}".format(marker_ID))
 
+                    self.published_aruco_ids.add(marker_ID)
                     self.coordinate_buffers[marker_ID].clear()
 
         return frame
@@ -109,8 +109,8 @@ class ArucoDetector():
 
 # Entry point of the program
 def main():
-    rospy.init_node('EGH450_vision', anonymous=True)  # Initializes a new ROS node
-    rospy.loginfo("Node 'EGH450 vision' started")
+    rospy.init_node('aruco_node', anonymous=False)  # Initializes a new ROS node
+    rospy.loginfo("Node 'ArUco Detected' started")
     rospy.loginfo("Processing images...")
 
     aruco_detect = ArucoDetector()  # Run specified class
