@@ -41,7 +41,6 @@ class ArucoDetector():
         rospy.loginfo(f"Subscriber to topic '/processor_node/image/compressed' initialised")
 
         # Keep Unique IDs
-        self.unique_aruco_ids = set()
         self.published_aruco_ids = set()
         # Store last 10 sets of coordinates for each marker
         self.coordinate_buffers = defaultdict(lambda: deque(maxlen=10)) 
@@ -80,6 +79,8 @@ class ArucoDetector():
                 
                 self.coordinate_buffers[marker_ID].append(corners.flatten())
 
+                #  and marker_ID not in self.published_aruco_ids
+
                 if len(self.coordinate_buffers[marker_ID]) == 10 and marker_ID not in self.published_aruco_ids:
                     # Compute average coordinates
                     avg_corners = np.mean(self.coordinate_buffers[marker_ID], axis=0).reshape((4,2))
@@ -109,7 +110,7 @@ class ArucoDetector():
 
 # Entry point of the program
 def main():
-    rospy.init_node('aruco_node', anonymous=False)  # Initializes a new ROS node
+    rospy.init_node('EGH450_vision', anonymous=True)  # Initializes a new ROS node
     rospy.loginfo("Node 'ArUco Detected' started")
     rospy.loginfo("Processing images...")
 

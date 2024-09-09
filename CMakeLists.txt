@@ -162,11 +162,11 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/dai_publisher 
   scripts/aruco_subscriber
+  scripts/aruco_detector
   scripts/dai_detector
   scripts/aruco_subscriber_voice
   scripts/aruco_subscriber_voice2
   scripts/dai_publisher_yolov5_runner_2
-  scripts/aruco_subscriber_pose_wip
   scripts/aruco_subscriber_pose_wip2
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
