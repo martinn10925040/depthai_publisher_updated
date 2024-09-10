@@ -137,11 +137,11 @@ class DepthaiCamera():
             object_detection_msg.data = [float(object_id)] + [coord for point in avg_corners for coord in point] + [marker_length_x, marker_length_y]
  
             self.pub_object_detect.publish(object_detection_msg)
+            rospy.loginfo("Found Target: {}".format(labels[detection.label]))
             rospy.loginfo("Published Object Identity and Coordinates for: {}".format(object_detection_msg.data[0]))
 
             os.system(f"espeak 'Detected Target: {labels[detection.label]}'")  # Use espeak to speak the ID
             #rospy.loginfo("Target detected: {}".format(labels[detection.label]))
-            rospy.loginfo("Found Target: {}".format(labels[detection.label]))
             
             # Mark objects as published
             self.published_objects.add(object_id)
@@ -150,7 +150,7 @@ class DepthaiCamera():
     def publish_camera_info(self, timer=None):
         # Create a CameraInfo message
         camera_info_msg = CameraInfo()
-        camera_info_msg.header.frame_id = "camera_frame"
+        camera_info_msg.header.frame_id = "camera"
         camera_info_msg.height = self.nn_shape_h # Set the height of the camera image
         camera_info_msg.width = self.nn_shape_w  # Set the width of the camera image
 

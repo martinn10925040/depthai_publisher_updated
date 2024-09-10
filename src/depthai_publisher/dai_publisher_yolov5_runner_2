@@ -28,14 +28,14 @@ cam=None
 # sync outputs
 syncNN = True
 # model path
-modelsPath = "/home/uavteam2/catkin_ws/src/depthai_publisher/src/depthai_publisher/models"
+modelsPath = "/home/uavteam2/models"
 # modelName = 'exp31Yolov5_ov21.4_6sh'
-modelName = 'best_version7_openvino_marty'
+modelName = 'best_mission2'
 # confJson = 'exp31Yolov5.json'
-confJson = 'best.json'
+confJson = 'best_mission2.json'
 class_colors = {
-    0: (255, 0, 0), # Class 0 colour (purple)
-    1: (0, 0, 225), # Class 1 colour (green)
+    0: (255, 0, 0), # Class 0 colour 
+    1: (0, 0, 225), # Class 1 colour 
 }
 ################################  Yolo Config File
 # parse config
