@@ -21,12 +21,12 @@ class ArucoDetector():
 
         # Marker detection publisher
         self.aruco_pub = rospy.Publisher(
-            '/processed_aruco/image/compressed', CompressedImage, queue_size=10)
+            '/processed_aruco/image/compressed', CompressedImage, queue_size=50)
         rospy.loginfo("Publisher '/processed_aruco/image/compressed' initialised")
 
         # ArUco POSE estimator publisher
         self.aruco_pub_pose = rospy.Publisher(
-            '/aruco_pose', Float32MultiArray, queue_size=10)
+            '/aruco_pose', Float32MultiArray, queue_size=50)
         rospy.loginfo("Publisher '/aruco_pose' initialised for Autopilot Integration")
         
         # Initialize CvBridge for converting ROS images to OpenCV format
@@ -37,7 +37,7 @@ class ArucoDetector():
 
         if not rospy.is_shutdown():  # To check if ROS is shutting down
             self.frame_sub = rospy.Subscriber(
-                '/processor_node/image/compressed', CompressedImage, self.img_callback) 
+                '/processor_node/image/compressed', CompressedImage, self.img_callback, buff_size=4) 
         rospy.loginfo(f"Subscriber to topic '/processor_node/image/compressed' initialised")
 
         # Keep Unique IDs
