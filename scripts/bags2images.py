@@ -4,7 +4,7 @@
 # Copyright 2016 Massachusetts Institute of Technology
 
 """Extract images from a rosbag.
-Example use:  python3 bags2images.py '/home/user/2023-07-31-14-30-34.bag' ~/Desktop/testOutFrames /depthai_node/image/raw
+Example use:  python3 bags2images.py '/home/user/2023-07-31-14-30-34.bag' ~/Desktop/testOutFrames /processor_node/image/raw
 """
 
 import os
