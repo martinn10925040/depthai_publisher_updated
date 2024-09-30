@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+
+from depthai_publisher import yolov5_mission2
+if __name__ == '__main__':
+    yolov5_mission2.main()
