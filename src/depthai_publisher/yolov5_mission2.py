@@ -1,3 +1,4 @@
+ 
 pipeline = None
 cam_source = 'rgb' #'rgb', 'left', 'right'
 cam=None
@@ -19,11 +20,11 @@ from sensor_msgs.msg import CompressedImage, Image, CameraInfo
 from std_msgs.msg import Float32MultiArray
 from cv_bridge import CvBridge
 from std_msgs.msg import String
-import subprocess
-import threading
+# import subprocess
+# import threading
 
 # YOLO Config File and Model Parameters
-modelsPath = "/home/uavteam2/models"
+modelsPath = "/home/uavteam2/QUT_EGH450/src/depthai_publisher/src/depthai_publisher/models"
 modelName = 'best_mission2'
 confJson = 'best_mission2.json'
 
@@ -44,6 +45,9 @@ iouThreshold = metadata.get("iou_threshold", {})
 confidenceThreshold = metadata.get("confidence_threshold", {})
 nnMappings = config.get("mappings", {})
 object_labels = nnMappings.get("labels", {})
+
+# global variable
+pub_speaker = None #declare global publisher for speaking
 
 class DepthaiCamera:
     fps = 30.0
@@ -91,12 +95,12 @@ class DepthaiCamera:
 
         rospy.loginfo("Publishing images to rostopic: {}".format(self.pub_topic))
 
-    def speak(self, text):
-        global speak_pub
-        # Run the espeak subprocess asynchronously to avoid blocking
-        threading.Thread(target=subprocess.run, args=(['espeak', text],)).start()
-        if speak_pub:
-            speak_pub.publish(text)  # Publish the text to the ROS topic
+    # def speak(self, text):
+    #     global speak_pub
+    #     # Run the espeak subprocess asynchronously to avoid blocking
+    #     threading.Thread(target=subprocess.run, args=(['espeak', text],)).start()
+    #     if speak_pub:
+    #         speak_pub.publish(text)  # Publish the text to the ROS topic
 
 
     def publish_object_pose(self, detection, frame):
@@ -172,7 +176,12 @@ class DepthaiCamera:
             self.pub_object_detect.publish(msg)
             rospy.loginfo(f"Published object pose for {obj_name} (ID {obj_id})")
             
-            self.speak(f"Detected Target: {object_labels[detection.label]}")
+            # New Speak Functionality: Construct and publish the message to be spoken
+            speaker_msg = String()
+            speaker_msg.data = f"Detected Target ID: {obj_id}, Position X: {avg_tl_x:.2f}, Y: {avg_tl_y:.2f}"
+            pub_speaker.publish(speaker_msg)
+
+            # self.speak(f"Detected Target: {object_labels[detection.label]}")
             # os.system(f"espeak 'Detected Target: {object_labels[detection.label]}'") #use espeak
 
             # Mark as published to stop further messages
@@ -321,9 +330,10 @@ class DepthaiCamera:
 
 # Main Code
 def main():
-    global speak_pub 
-# Set up the publisher for spoken text on the 'spoken_text' topic
-    speak_pub = rospy.Publisher('spoken_text', String, queue_size=10)
+    global pub_speaker
+    # Set up the publisher for spoken text on the 'spoken_text' topic
+    pub_speaker = rospy.Publisher('spoken_text', String, queue_size=10)
+
     rospy.init_node('depthai_node')
     dai_cam = DepthaiCamera()
     while not rospy.is_shutdown():
@@ -332,3 +342,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
