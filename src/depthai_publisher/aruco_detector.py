@@ -37,8 +37,8 @@ class ArucoDetector():
 
         if not rospy.is_shutdown():  # To check if ROS is shutting down
             self.frame_sub = rospy.Subscriber(
-                '/processor_node/image/compressed', CompressedImage, self.img_callback, buff_size=4) 
-        rospy.loginfo(f"Subscriber to topic '/processor_node/image/compressed' initialised")
+                '/depthai_node/image/compressed', CompressedImage, self.img_callback, buff_size=4) 
+        rospy.loginfo(f"Subscriber to topic '/depthai_node/image/compressed' initialised")
 
         # Keep Unique IDs
         self.published_aruco_ids = set()
@@ -92,10 +92,6 @@ class ArucoDetector():
                     self.aruco_pub_pose.publish(aruco_detection_msg)
                     rospy.loginfo("Published ArUco Identification and BBox corners: {}".format(aruco_detection_msg.data))
 
-                    # Speak the marker Id using espeak
-                    os.system(f"espeak 'Detected ArUco Marker {marker_ID}'")  # Use espeak to speak the ID
-                    rospy.loginfo("Aruco detected, ID: {}".format(marker_ID))
-
                     self.published_aruco_ids.add(marker_ID)
                     self.coordinate_buffers[marker_ID].clear()
 
@@ -110,7 +106,7 @@ class ArucoDetector():
 
 # Entry point of the program
 def main():
-    rospy.init_node('EGH450_vision', anonymous=True)  # Initializes a new ROS node
+    rospy.init_node('processed_aruco', anonymous=True)  # Initializes a new ROS node
     rospy.loginfo("Node 'ArUco Detected' started")
     rospy.loginfo("Processing images...")
 

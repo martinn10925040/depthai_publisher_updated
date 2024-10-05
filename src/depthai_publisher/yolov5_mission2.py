@@ -24,7 +24,7 @@ from std_msgs.msg import String
 # import threading
 
 # YOLO Config File and Model Parameters
-modelsPath = "/home/uavteam2/QUT_EGH450/src/depthai_publisher/src/depthai_publisher/models"
+modelsPath = "/home/uavteam2/models"
 modelName = 'best_mission2'
 confJson = 'best_mission2.json'
 

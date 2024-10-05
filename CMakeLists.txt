@@ -169,6 +169,7 @@ catkin_install_python(PROGRAMS
   scripts/aruco_subscriber_voice2
   scripts/dai_publisher_yolov5_runner_2
   scripts/aruco_subscriber_pose_wip2
+  scripts/yolov5_mission2
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

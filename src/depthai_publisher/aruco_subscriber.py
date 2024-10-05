@@ -102,7 +102,7 @@ class ArucoDetector():
 
                 # Check if this marker has already been published
                 if self.marker_corners[marker_ID]['published']:
-                    rospy.loginfo(f"Marker {marker_ID} has already been published. Skipping further detections.")
+                    #rospy.loginfo(f"Marker {marker_ID} has already been published. Skipping further detections.")
                     continue
 
                 # Accumulate corner coordinates
@@ -326,8 +326,6 @@ if __name__ == '__main__':
 #     main()
 
 
-<<<<<<< HEAD
-
 
 # import cv2
 # import rospy
@@ -441,9 +439,6 @@ if __name__ == '__main__':
 
 
 # if __name__ == "__main__":
-=======
-# <<<<<<< HEAD
-# #!/usr/bin/env python3
 # =======
 # # 
 # >>>>>>> 0c6d320e02ba0f42adec8d15bcbafdd02eb96e99
@@ -681,7 +676,6 @@ if __name__ == '__main__':
 
 # if __name__ == '__main__':
 
->>>>>>> 8a09fa12fd490461b138b539cd8e976be38e61b1
 #     main()
 
 
@@ -833,174 +827,172 @@ if __name__ == '__main__':
 # if __name__ == "__main__":
 #     main()
 
-<<<<<<< HEAD
-=======
-#!/usr/bin/env python3
+# <<<<<<< HEAD
+# =======
+# #!/usr/bin/env python3
 
-import cv2
-import rospy
-from sensor_msgs.msg import CompressedImage
-from cv_bridge import CvBridge, CvBridgeError
-import numpy as np
-from std_msgs.msg import Float32MultiArray, Int32
-import threading
-from collections import defaultdict, deque
+# import cv2
+# import rospy
+# from sensor_msgs.msg import CompressedImage
+# from cv_bridge import CvBridge, CvBridgeError
+# import numpy as np
+# from std_msgs.msg import Float32MultiArray, Int32
+# import threading
+# from collections import defaultdict, deque
 
-class ArucoDetector():
-    aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
-    aruco_params = cv2.aruco.DetectorParameters_create()
+# class ArucoDetector():
+#     aruco_dict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_5X5_100)
+#     aruco_params = cv2.aruco.DetectorParameters_create()
 
-    frame_sub_topic = '/depthai_node/image/compressed'
+#     frame_sub_topic = '/depthai_node/image/compressed'
 
-    def __init__(self):
-        # Publisher for processed images
-        self.image_pub = rospy.Publisher(
-            '/processed_aruco/image/compressed', CompressedImage, queue_size=10)
+#     def __init__(self):
+#         # Publisher for processed images
+#         self.image_pub = rospy.Publisher(
+#             '/processed_aruco/image/compressed', CompressedImage, queue_size=10)
 
-        # Publisher for initial and averaged marker data
-        self.aruco_detection_pub = rospy.Publisher(
-            '/aruco_detection', Float32MultiArray, queue_size=10)
+#         # Publisher for initial and averaged marker data
+#         self.aruco_detection_pub = rospy.Publisher(
+#             '/aruco_detection', Float32MultiArray, queue_size=10)
 
-        self.br = CvBridge()
-        self.frame = None  # Shared resource between threads
-        self.lock = threading.Lock()
-        self.new_frame_event = threading.Event()  # Event to signal the arrival of a new frame
+#         self.br = CvBridge()
+#         self.frame = None  # Shared resource between threads
+#         self.lock = threading.Lock()
+#         self.new_frame_event = threading.Event()  # Event to signal the arrival of a new frame
 
-        # Dictionary to store accumulated corner data per marker ID
-        self.marker_corners = defaultdict(lambda: deque(maxlen=10))
+#         # Dictionary to store accumulated corner data per marker ID
+#         self.marker_corners = defaultdict(lambda: deque(maxlen=10))
 
-        # Set to keep track of markers published upon first detection
-        self.published_markers = set()
+#         # Set to keep track of markers published upon first detection
+#         self.published_markers = set()
 
-        if not rospy.is_shutdown():
-            self.frame_sub = rospy.Subscriber(
-                self.frame_sub_topic, CompressedImage, self.img_callback, queue_size=1)
+#         if not rospy.is_shutdown():
+#             self.frame_sub = rospy.Subscriber(
+#                 self.frame_sub_topic, CompressedImage, self.img_callback, queue_size=1)
 
-        # Subscriber to receive averaging trigger
-        self.average_trigger_sub = rospy.Subscriber(
-            '/aruco/average_trigger', Int32, self.average_trigger_callback)
+#         # Subscriber to receive averaging trigger
+#         self.average_trigger_sub = rospy.Subscriber(
+#             '/aruco/average_trigger', Int32, self.average_trigger_callback)
 
-        # Start the processing thread
-        self.processing_thread = threading.Thread(target=self.process_frames)
-        self.processing_thread.daemon = True
-        self.processing_thread.start()
+#         # Start the processing thread
+#         self.processing_thread = threading.Thread(target=self.process_frames)
+#         self.processing_thread.daemon = True
+#         self.processing_thread.start()
 
-    def img_callback(self, msg_in):
-        try:
-            frame = self.br.compressed_imgmsg_to_cv2(msg_in)
-        except CvBridgeError as e:
-            rospy.logerr(e)
-            return
+#     def img_callback(self, msg_in):
+#         try:
+#             frame = self.br.compressed_imgmsg_to_cv2(msg_in)
+#         except CvBridgeError as e:
+#             rospy.logerr(e)
+#             return
 
-        # Acquire lock and update the shared frame
-        with self.lock:
-            self.frame = frame
-            self.new_frame_event.set()  # Signal that a new frame is available
+#         # Acquire lock and update the shared frame
+#         with self.lock:
+#             self.frame = frame
+#             self.new_frame_event.set()  # Signal that a new frame is available
 
-    def process_frames(self):
-        while not rospy.is_shutdown():
-            # Wait until a new frame is available
-            self.new_frame_event.wait()
-            with self.lock:
-                frame = self.frame.copy()
-                self.new_frame_event.clear()  # Reset the event
+#     def process_frames(self):
+#         while not rospy.is_shutdown():
+#             # Wait until a new frame is available
+#             self.new_frame_event.wait()
+#             with self.lock:
+#                 frame = self.frame.copy()
+#                 self.new_frame_event.clear()  # Reset the event
 
-            # Process the frame
-            processed_frame = self.find_aruco(frame)
+#             # Process the frame
+#             processed_frame = self.find_aruco(frame)
 
-            # Publish the processed image
-            self.publish_to_ros(processed_frame)
+#             # Publish the processed image
+#             self.publish_to_ros(processed_frame)
 
-    def find_aruco(self, frame):
-        # Convert to grayscale (optional, can speed up detection)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#     def find_aruco(self, frame):
+#         # Convert to grayscale (optional, can speed up detection)
+#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Detect markers
-        corners_list, ids, _ = cv2.aruco.detectMarkers(
-            gray, self.aruco_dict, parameters=self.aruco_params)
+#         # Detect markers
+#         corners_list, ids, _ = cv2.aruco.detectMarkers(
+#             gray, self.aruco_dict, parameters=self.aruco_params)
 
-        if ids is not None:
-            ids = ids.flatten()
+#         if ids is not None:
+#             ids = ids.flatten()
 
-            for marker_corners, marker_ID in zip(corners_list, ids):
-                # Draw the bounding box around the detected ArUco marker
-                corners = marker_corners.reshape((4, 2))
-                (top_left, top_right, bottom_right, bottom_left) = corners
+#             for marker_corners, marker_ID in zip(corners_list, ids):
+#                 # Draw the bounding box around the detected ArUco marker
+#                 corners = marker_corners.reshape((4, 2))
+#                 (top_left, top_right, bottom_right, bottom_left) = corners
 
-                # Draw marker edges
-                cv2.line(frame, tuple(map(int, top_left)), tuple(map(int, top_right)), (0, 255, 0), 2)
-                cv2.line(frame, tuple(map(int, top_right)), tuple(map(int, bottom_right)), (0, 255, 0), 2)
-                cv2.line(frame, tuple(map(int, bottom_right)), tuple(map(int, bottom_left)), (0, 255, 0), 2)
-                cv2.line(frame, tuple(map(int, bottom_left)), tuple(map(int, top_left)), (0, 255, 0), 2)
+#                 # Draw marker edges
+#                 cv2.line(frame, tuple(map(int, top_left)), tuple(map(int, top_right)), (0, 255, 0), 2)
+#                 cv2.line(frame, tuple(map(int, top_right)), tuple(map(int, bottom_right)), (0, 255, 0), 2)
+#                 cv2.line(frame, tuple(map(int, bottom_right)), tuple(map(int, bottom_left)), (0, 255, 0), 2)
+#                 cv2.line(frame, tuple(map(int, bottom_left)), tuple(map(int, top_left)), (0, 255, 0), 2)
 
-                # Annotate the frame with the detected ID
-                cv2.putText(frame, str(marker_ID), (int(top_left[0]), int(top_left[1]) - 15),
-                            cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0), 2)
+#                 # Annotate the frame with the detected ID
+#                 cv2.putText(frame, str(marker_ID), (int(top_left[0]), int(top_left[1]) - 15),
+#                             cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0), 2)
 
-                # If marker hasn't been published yet upon first detection, publish its pose
-                if marker_ID not in self.published_markers:
-                    detection_msg = Float32MultiArray()
-                    detection_msg.data = [float(marker_ID)] + corners.flatten().tolist()
-                    self.aruco_detection_pub.publish(detection_msg)
-                    rospy.loginfo(f"Published initial detection for Marker {marker_ID}")
-                    self.published_markers.add(marker_ID)
+#                 # If marker hasn't been published yet upon first detection, publish its pose
+#                 if marker_ID not in self.published_markers:
+#                     detection_msg = Float32MultiArray()
+#                     detection_msg.data = [float(marker_ID)] + corners.flatten().tolist()
+#                     self.aruco_detection_pub.publish(detection_msg)
+#                     rospy.loginfo(f"Published initial detection for Marker {marker_ID}")
+#                     self.published_markers.add(marker_ID)
 
-                # Accumulate corner coordinates
-                self.marker_corners[marker_ID].append(corners)
-                rospy.loginfo(f"Accumulated detection for Marker {marker_ID}, count: {len(self.marker_corners[marker_ID])}")
+#                 # Accumulate corner coordinates
+#                 self.marker_corners[marker_ID].append(corners)
+#                 rospy.loginfo(f"Accumulated detection for Marker {marker_ID}, count: {len(self.marker_corners[marker_ID])}")
 
-        return frame
+#         return frame
 
-    def average_trigger_callback(self, msg):
-        rospy.loginfo(f"Received trigger message: {msg.data}")
-        if msg.data == 1:
-            rospy.loginfo("Received averaging trigger")
+#     def average_trigger_callback(self, msg):
+#         rospy.loginfo(f"Received trigger message: {msg.data}")
+#         if msg.data == 1:
+#             rospy.loginfo("Received averaging trigger")
 
-            # For each marker, compute average if there are detections
-            for marker_ID, corners_list in self.marker_corners.items():
-                count = len(corners_list)
-                if count > 0:
-                    all_corners = np.array(corners_list)
-                    avg_corners = np.mean(all_corners, axis=0)
+#             # For each marker, compute average if there are detections
+#             for marker_ID, corners_list in self.marker_corners.items():
+#                 count = len(corners_list)
+#                 if count > 0:
+#                     all_corners = np.array(corners_list)
+#                     avg_corners = np.mean(all_corners, axis=0)
 
-                    # Log the averaged corner coordinates
-                    rospy.loginfo(f"Averaged corners for Marker {marker_ID}: {avg_corners}")
+#                     # Log the averaged corner coordinates
+#                     rospy.loginfo(f"Averaged corners for Marker {marker_ID}: {avg_corners}")
 
-                    # Create a Float32MultiArray message for the averaged corners
-                    averaged_msg = Float32MultiArray()
-                    averaged_msg.data = [float(marker_ID)] + avg_corners.flatten().tolist()
+#                     # Create a Float32MultiArray message for the averaged corners
+#                     averaged_msg = Float32MultiArray()
+#                     averaged_msg.data = [float(marker_ID)] + avg_corners.flatten().tolist()
 
-                    # Publish the averaged data
-                    self.aruco_detection_pub.publish(averaged_msg)
-                    rospy.loginfo(f"Published averaged Aruco ID and corners: {averaged_msg.data}")
-                else:
-                    rospy.loginfo(f"No detections for Marker {marker_ID}, skipping averaging.")
+#                     # Publish the averaged data
+#                     self.aruco_detection_pub.publish(averaged_msg)
+#                     rospy.loginfo(f"Published averaged Aruco ID and corners: {averaged_msg.data}")
+#                 else:
+#                     rospy.loginfo(f"No detections for Marker {marker_ID}, skipping averaging.")
 
-            # Reset the accumulation data
-            self.marker_corners.clear()
-            rospy.loginfo("Accumulation data cleared after averaging")
-        else:
-            rospy.loginfo("Received trigger with value other than 1, ignoring.")
+#             # Reset the accumulation data
+#             self.marker_corners.clear()
+#             rospy.loginfo("Accumulation data cleared after averaging")
+#         else:
+#             rospy.loginfo("Received trigger with value other than 1, ignoring.")
 
-    def publish_to_ros(self, frame):
-        # Publishing the processed image
-        msg_out = CompressedImage()
-        msg_out.header.stamp = rospy.Time.now()
-        msg_out.format = "jpeg"
-        msg_out.data = np.array(cv2.imencode('.jpg', frame)[1]).tobytes()
+#     def publish_to_ros(self, frame):
+#         # Publishing the processed image
+#         msg_out = CompressedImage()
+#         msg_out.header.stamp = rospy.Time.now()
+#         msg_out.format = "jpeg"
+#         msg_out.data = np.array(cv2.imencode('.jpg', frame)[1]).tobytes()
 
-        self.image_pub.publish(msg_out)  # Publish the processed image
+#         self.image_pub.publish(msg_out)  # Publish the processed image
 
-def main():
-    rospy.init_node('EGB349_vision', anonymous=True)
-    rospy.loginfo("Processing images...")
+# def main():
+#     rospy.init_node('EGB349_vision', anonymous=True)
+#     rospy.loginfo("Processing images...")
 
-    aruco_detect = ArucoDetector()
+#     aruco_detect = ArucoDetector()
 
-    rospy.spin()
+#     rospy.spin()
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
 
-
->>>>>>> 8a09fa12fd490461b138b539cd8e976be38e61b1
