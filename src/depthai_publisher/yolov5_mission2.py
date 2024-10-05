@@ -25,15 +25,14 @@ from std_msgs.msg import String # ROS message types for pose data and strings
 # import threading
 
 # YOLO Config File and Model Parameters
-<<<<<<< HEAD
 modelsPath = "/home/uavteam2/models"
 modelName = 'best_mission2'
 confJson = 'best_mission2.json'
-=======
-modelsPath = "/home/uavteam2/QUT_EGH450/src/depthai_publisher/src/depthai_publisher/models" # Path to models
-modelName = 'best_mission2' # Model name to use
-confJson = 'best_mission2.json' # Corresponding configuration file
->>>>>>> 2aa631b477aa9807da1c58cb785bd36650a6b7d4
+# Define class colors
+class_colors = {
+    0: (127, 0, 255),   # pink for class 0
+    1: (128, 255, 0),   # green for class 1
+}
 
 # COnstruct Config File and Model Parameters
 configPath = Path(f'{modelsPath}/{modelName}/{confJson}')
@@ -58,6 +57,7 @@ object_labels = nnMappings.get("labels", {})
 pub_speaker = None #declare global publisher for speaking
 
 class DepthaiCamera:
+    res = [416,416] # resolution of the camera
     fps = 30.0 # Camera frames per second
     pub_topic = '/depthai_node/image/compressed' # ROS topic for publishing compressed images
     pub_topic_raw = '/depthai_node/image/raw' # ROS topic for publishing raw images
@@ -213,62 +213,83 @@ class DepthaiCamera:
         camera_info_msg.header.stamp = rospy.Time.now() # Set timestamp
         # Publish camera info message
         self.pub_cam_inf.publish(camera_info_msg)
+
+    def rgb_camera(self):
+        cam_rgb = self.pipeline.createColorCamera()
+        cam_rgb.setPreviewSize(self.res[0], self.res[1])
+        cam_rgb.setInterleaved(False)
+        cam_rgb.setFps(self.fps)
+
+        # Def xout / xin
+        ctrl_in = self.pipeline.createXLinkIn()
+        ctrl_in.setStreamName("cam_ctrl")
+        ctrl_in.out.link(cam_rgb.inputControl)
+
+        xout_rgb = self.pipeline.createXLinkOut()
+        xout_rgb.setStreamName("video")
+
+        cam_rgb.preview.link(xout_rgb.input)
+
     # Main loop to process the camera input and detections
     def run(self):
-        modelPathName = f'{modelsPath}/{modelName}/{modelName}.blob' # Path to the bolb model life
-        nnPath = str((Path(__file__).parent / Path(modelPathName)).resolve().absolute()) # Full path to model
-        pipeline = self.createPipeline(nnPath) # Create DepthAI pipeline
+        # Initialize the RGB camera
+        self.rgb_camera()
+
+        modelPathName = f'{modelsPath}/{modelName}/{modelName}.blob'  # Path to the blob model file
+        nnPath = str((Path(__file__).parent / Path(modelPathName)).resolve().absolute())  # Full path to model
+        pipeline = self.createPipeline(nnPath)  # Create DepthAI pipeline
 
         with dai.Device() as device:
             cams = device.getConnectedCameras()
-            depth_enabled = dai.CameraBoardSocket.LEFT in cams and dai.CameraBoardSocket.RIGHT in cams # Check if depth cameras are enabled
+            depth_enabled = dai.CameraBoardSocket.LEFT in cams and dai.CameraBoardSocket.RIGHT in cams  # Check if depth cameras are enabled
             if cam_source != "rgb" and not depth_enabled:
                 raise RuntimeError("Unable to run the experiment on {} camera! Available cameras: {}".format(cam_source, cams))
-            device.startPipeline(pipeline) # Start the pipline
+            device.startPipeline(pipeline)  # Start the pipeline
 
-            q_nn_input = device.getOutputQueue(name="nn_input", maxSize=4, blocking=False) # Neural network input queue
-            q_nn = device.getOutputQueue(name="nn", maxSize=4, blocking=False) # Neural network output queue
+            q_nn_input = device.getOutputQueue(name="nn_input", maxSize=4, blocking=False)  # Neural network input queue
+            q_nn = device.getOutputQueue(name="nn", maxSize=4, blocking=False)  # Neural network output queue
 
-            frame = None # Initialise frame
-            detections = [] # Initialise detections list
-            start_time = time.time() # Start time for FPS calculation
-            counter = 0 # Initialise frame counter
-            fps = 0 # Initialise FPS
+            frame = None  # Initialize frame
+            detections = []  # Initialize detections list
+            start_time = time.time()  # Start time for FPS calculation
+            counter = 0  # Initialize frame counter
+            fps = 0  # Initialize FPS
 
             while True:
-                found_classes = [] # Initialise list of found classes
-                inRgb = q_nn_input.get() # Get Input Frame
-                inDet = q_nn.get() # Get detection result
+                found_classes = []  # Initialize list of found classes
+                inRgb = q_nn_input.get()  # Get input frame
+                inDet = q_nn.get()  # Get detection result
 
                 if inRgb is not None:
-                    frame = inRgb.getCvFrame() # Get OpenCV frame from input
+                    frame = inRgb.getCvFrame()  # Get OpenCV frame from input
                 else:
                     print("Image empty, trying again...")
                     continue
 
                 if inDet is not None:
-                    detections = inDet.detections # Get detections from result
+                    detections = inDet.detections  # Get detections from result
                     for detection in detections:
                         self.publish_object_pose(detection, frame)  # Publish object pose if detected
-                    found_classes = np.unique([d.label for d in detections]) # Get unique detected classess
-                    overlay = self.show_yolo(frame, detections) # Draw  bounding boxes on frame
+                    found_classes = np.unique([d.label for d in detections])  # Get unique detected classes
+                    overlay = self.show_yolo(frame, detections)  # Draw bounding boxes on frame
                 else:
-                    print("Detection empty, trying again...") # Hanlde empty detection
+                    print("Detection empty, trying again...")  # Handle empty detection
                     continue
 
                 if frame is not None:
                     # Display FPS and detected classes on the frame
                     cv2.putText(overlay, "NN fps: {:.2f}".format(fps), (2, overlay.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 0, 0))
                     cv2.putText(overlay, "Found classes {}".format(found_classes), (2, 10), cv2.FONT_HERSHEY_TRIPLEX, 0.4, (255, 0, 0))
-                    self.publish_to_ros(frame) # Publish frame to ROS 
-                    self.publish_detect_to_ros(overlay) # Publish detection overlay
-                    self.publish_camera_info() # Publish camera info
+                    self.publish_to_ros(frame)  # Publish frame to ROS
+                    self.publish_detect_to_ros(overlay)  # Publish detection overlay
+                    self.publish_camera_info()  # Publish camera info
 
                 counter += 1
                 if (time.time() - start_time) > 1:
-                    fps = counter / (time.time() - start_time) # Update FPS calculation
+                    fps = counter / (time.time() - start_time)  # Update FPS calculation
                     counter = 0
                     start_time = time.time()
+
     # Function to publish frame to ROS
     def publish_to_ros(self, frame):
         msg_out = CompressedImage() # Create ROS compressed image message
@@ -293,55 +314,85 @@ class DepthaiCamera:
         normVals[::2] = frame.shape[1]
         return (np.clip(np.array(bbox), 0, 1) * normVals).astype(int) # Clip values to [0,1] and convert to int
     
-     # Function to draw YOLO detection results on the frame
+   # Function to draw YOLO detection results on the frame with class-specific colors
     def show_yolo(self, frame, detections):
-        color = (255, 0, 0) # Set bounding box color
-        overlay = frame.copy() # Create a copy of the frame
+        overlay = frame.copy()  # Create a copy of the frame
         for detection in detections:
             bbox = self.frameNorm(overlay, (detection.xmin, detection.ymin, detection.xmax, detection.ymax))  # Get bounding box
-            cv2.putText(overlay, object_labels[detection.label], (bbox[0] + 10, bbox[1] + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)  # Label class
-            cv2.putText(overlay, f"{int(detection.confidence * 100)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)  # Label confidence
-            cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)  # Draw bounding box
-        return overlay
+            class_id = detection.label  # Get the class ID
+            color = class_colors.get(class_id, (255, 0, 0))  # Default to red if class not found
+
+        # Draw the label and confidence on the frame
+            cv2.putText(overlay, object_labels[detection.label], (bbox[0] + 10, bbox[1] + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
+            cv2.putText(overlay, f"{int(detection.confidence * 100)}%", (bbox[0] + 10, bbox[1] + 40), cv2.FONT_HERSHEY_TRIPLEX, 0.5, color)
+
+        # Draw bounding box
+            cv2.rectangle(overlay, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)  # Use class color for the bounding box
+
+        return overlay  # Return the frame with the bounding boxes and labels
     
      # Create DepthAI pipeline for the YOLO model
     def createPipeline(self, nnPath):
-        pipeline = dai.Pipeline()  # Create pipeline
-        pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2022_1)   # Set OpenVINO version
-        # Create YOLO detection node
+
+        pipeline = dai.Pipeline()
+        pipeline.setOpenVINOVersion(version=dai.OpenVINO.Version.VERSION_2022_1)
+
+        # Define a neural network that will make predictions based on the source frames
         detection_nn = pipeline.create(dai.node.YoloDetectionNetwork)
-        detection_nn.setConfidenceThreshold(confidenceThreshold) # Set confidence threshold
-        detection_nn.setNumClasses(classes)  # Set number of classes
-        detection_nn.setCoordinateSize(coordinates)  # Set bounding box coordinate size
-        detection_nn.setAnchors(anchors)  # Set anchors
-        detection_nn.setAnchorMasks(anchorMasks)  # Set anchor masks
-        detection_nn.setIouThreshold(iouThreshold) # Set IoU threshold
-        detection_nn.setBlobPath(nnPath)   # Load neural network model
-        detection_nn.setNumPoolFrames(4) # Set number of pool frames
-        detection_nn.input.setBlocking(False)  # Non-blocking input
-        detection_nn.setNumInferenceThreads(2) # Set number of inference threads
+        # Network specific settings
+        detection_nn.setConfidenceThreshold(confidenceThreshold)
+        detection_nn.setNumClasses(classes)
+        detection_nn.setCoordinateSize(coordinates)
+        detection_nn.setAnchors(anchors)
+        detection_nn.setAnchorMasks(anchorMasks)
+        detection_nn.setIouThreshold(iouThreshold)
+        # generic nn configs
+        detection_nn.setBlobPath(nnPath)
+        detection_nn.setNumPoolFrames(4)
+        detection_nn.input.setBlocking(False)
+        detection_nn.setNumInferenceThreads(2)
 
-        cam = pipeline.create(dai.node.ColorCamera)
-        cam.setPreviewSize(self.nn_shape_w, self.nn_shape_h) # Set camera preview size
-        cam.setInterleaved(False)  # Set interleaved mode to false
-        cam.preview.link(detection_nn.input)  # Link camera preview to YOLO input
-        cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR) # Set color order to BGR
-        cam.setFps(40)  # Set camera FPS
+        # Define a source - color camera
+        if cam_source == 'rgb':
+            cam = pipeline.create(dai.node.ColorCamera)
+            cam.setPreviewSize(self.nn_shape_w,self.nn_shape_h)
+            cam.setInterleaved(False)
+            cam.preview.link(detection_nn.input)
+            cam.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
+            cam.setFps(10)
+            print("Using RGB camera...")
+        elif cam_source == 'left':
+            cam = pipeline.create(dai.node.MonoCamera)
+            cam.setBoardSocket(dai.CameraBoardSocket.LEFT)
+            print("Using BW Left cam")
+        elif cam_source == 'right':
+            cam = pipeline.create(dai.node.MonoCamera)
+            cam.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+            print("Using BW Rigth cam")
 
-        # Set up XLinkOut for the RGB input and detection output
-        xout_rgb = pipeline.create(dai.node.XLinkOut) 
-        xout_rgb.setStreamName("nn_input")   # Set stream name for RGB input
-        xout_rgb.input.setBlocking(False)  # Non-blocking input
+        if cam_source != 'rgb':
+            manip = pipeline.create(dai.node.ImageManip)
+            manip.setResize(self.nn_shape_w,self.nn_shape_h)
+            manip.setKeepAspectRatio(True)
+            # manip.setFrameType(dai.RawImgFrame.Type.BGR888p)
+            manip.setFrameType(dai.RawImgFrame.Type.RGB888p)
+            cam.out.link(manip.inputImage)
+            manip.out.link(detection_nn.input)
 
-        detection_nn.passthrough.link(xout_rgb.input)  # Link YOLO output to XLinkOut
+        # Create outputs
+        xout_rgb = pipeline.create(dai.node.XLinkOut)
+        xout_rgb.setStreamName("nn_input")
+        xout_rgb.input.setBlocking(False)
+
+        detection_nn.passthrough.link(xout_rgb.input)
 
         xinDet = pipeline.create(dai.node.XLinkOut)
-        xinDet.setStreamName("nn")   # Set stream name for YOLO detection output
-        xinDet.input.setBlocking(False) # Non-blocking input
+        xinDet.setStreamName("nn")
+        xinDet.input.setBlocking(False)
 
-        detection_nn.out.link(xinDet.input) # Link YOLO output to XLinkOut
+        detection_nn.out.link(xinDet.input)
 
-        return pipeline  # Return the pipeline
+        return pipeline
 
     # Cleanup function to close OpenCV windows
     def shutdown(self):
