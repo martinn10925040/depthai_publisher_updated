@@ -37,7 +37,6 @@ confJson = 'best_mission1.json'
 class_colors = {
     0: (127, 0, 255),   # pink
     1: (128, 255, 0),   # green
-    2: (252, 202, 66),  # blue
 }
 
 ################################ Yolo Config File
